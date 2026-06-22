@@ -93,6 +93,7 @@
             // 初始化地图
             var map = new TMap.Map('container', {
                 zoom: 16,
+          mapStyleId: "style8",
                 center
             });
 
@@ -238,6 +239,7 @@
                         center: position,
                         rotation: e.car.angle && e.car.angle,
                         zoom: 20,
+          mapStyleId: "style8",
                         pitch: 70
                     },
                     {
@@ -274,6 +276,7 @@
                 map.easeTo(
                     {
                         zoom: 20,
+          mapStyleId: "style8",
                         rotation: 180,
                         pitch: 80
                     },
@@ -319,6 +322,7 @@
                 map.easeTo({
                     center,
                     zoom: 16,
+          mapStyleId: "style8",
                     rotation: 0,
                     pitch: 0
                 });

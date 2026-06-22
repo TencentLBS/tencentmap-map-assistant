@@ -1,13 +1,13 @@
 ---
-name: TencentMap_map-assistant
-description: 腾讯位置服务·地图助手 Skill，一句自然语言调用腾讯地图全套能力，无需开发者账号、开箱即用。提供 AI 旅游攻略、地点搜索（含评分/人均/营业时间）、关键词提示、路线规划（驾车/步行/公交/骑行）、地址解析与逆解析、行政区划、IP 定位、距离计算、天气查询，并可将行程或多 POI 渲染成网页地图。涉及找地点、规划路线、旅游行程、查天气、坐标转换等出行场景时使用。
+name: tencentmap-map-assistant-skill
+description: 腾讯地图·地图助手 Skill，一句自然语言调用腾讯地图全套能力，无需开发者账号、开箱即用。提供 AI 旅游攻略、地点搜索（含评分/人均/营业时间）、关键词提示、路线规划（驾车/步行/公交/骑行）、地址解析与逆解析、行政区划、IP 定位、距离计算、天气查询，并可将行程或多 POI 渲染成网页地图或生成腾讯地图小程序指南。涉及找地点、规划路线、旅游行程、查天气、坐标转换等出行场景时使用。
 license: MIT
-version: 1.4.4
+version: 1.4.5
 ---
 
 # 地图助手 Skill
 
-腾讯位置服务出品。用一句自然语言即可生成旅游攻略、搜索地点、规划路线、解析地址坐标，并可将结果渲染成网页地图。
+腾讯位置服务出品。用一句自然语言即可生成旅游攻略、搜索地点、规划路线、解析地址坐标，并可将结果渲染成网页地图或生成腾讯地图小程序指南。
 
 ## 能力
 
@@ -16,6 +16,7 @@ version: 1.4.4
 | 能力 | 说明 | 方法 |
 |------|------|------|
 | AI 旅游攻略 | 自然语言 query → 多日行程攻略，可联动腾讯地图小程序，与朋友共同编辑行程、规划多人出行 | `travel_guide` |
+| 个人地图指南 | 地点列表 → 个人专属地图（保存到腾讯地图小程序，手机随时查看） | `generate_map_guide` |
 | 地点搜索 | 城市/区域搜索、周边圆形搜索、POI 详情 | `poi_search` / `poi_nearby` / `poi_detail` |
 | 关键词输入提示 | 输入补全候选 POI | `poi_sug` |
 | 行政区划 | 省市区列表、下级区划、区划搜索 | `district_list` / `district_children` / `district_search` |
@@ -39,7 +40,7 @@ pip install requests
 
 ```python
 import sys, os
-sys.path.insert(0, os.path.expanduser('~/.workbuddy/skills/TencentMap_map-assistant/scripts'))
+sys.path.insert(0, os.path.expanduser('~/.workbuddy/skills/tencentmap-map-assistant-skill/scripts'))
 from tmap_client import TmapClient
 
 client = TmapClient()
@@ -49,14 +50,14 @@ pois   = client.poi_search("黄鹤楼", region="武汉")
 addr   = client.geocoder("深圳市腾讯滨海大厦")
 ```
 
-配置自己的腾讯位置服务 Key（持久化到 skill 包内 `.env`，之后自动启用）：
+配置自己的腾讯位置服务 Key（持久化到 `.env`，之后自动启用）：
 
 ```python
 from tmap_client import save_key_to_dotenv
 save_key_to_dotenv("你的 Key")
 ```
 
-> 未配置 Key 时可直接调用，任务正常完成；配置后稳定性与频次更优。
+> 未配置 Key 也可调用，任务正常完成；配置后稳定性与频次更优。
 
 ## 参数与返回
 
@@ -69,7 +70,21 @@ save_key_to_dotenv("你的 Key")
 | `query` | str | 是 | 目的地 + 天数，例如 "武汉5天攻略" / "成都3天美食游" |
 | `lat`, `lng` | float | 否 | 用户当前位置（影响 A2A 上下文，不决定目的地） |
 
-**返回**：结构化攻略数据（`title`/`summary`/`days` 行程列表等），以及 **`output_markdown`**（成品攻略 md 文件路径，Read 后原样输出即可）。
+**返回**：结构化攻略数据（`title`/`summary`/`days` 行程列表等），以及 **`output_markdown`**（成品攻略 md 文件路径，含小程序二维码，Read 后原样输出）。
+
+### 个人地图指南 — generate_map_guide
+
+`generate_map_guide(pois, city, title="我的指南", query="", description="")`：将任意地点列表（搜索结果、路线点、打卡记录）一键保存为腾讯地图小程序里的个人专属地图，在手机上随时查看和导航。
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `pois` | List[Dict] | 是 | POI 列表，每个 POI 应包含 `name` / `lat` / `lng`，推荐含 `poi_id` |
+| `city` | str | 是 | 城市名称 |
+| `title` | str | 否 | 指南标题，默认"我的指南" |
+| `query` | str | 否 | 用户原始输入（用于入库备注） |
+| `description` | str | 否 | 行程/路线描述文本，会嵌入输出 md 正文 |
+
+**返回**：`{travel_guide_id, qr_code, qr_path, mini_program_username, output_markdown}`
 
 ### 地点搜索 — poi_search
 
@@ -179,14 +194,16 @@ district_search(keyword)         # 关键词搜区划
 
 ### 行程 / POI 可视化 HTML
 
-涉及"多 POI 对比 / 路线 / 多天行程"等"看图比看字直观"的场景，可基于结构化数据渲染网页地图。地图底图使用腾讯地图 JSAPI GL，HTML 模板、底图 `<script>` 标签、API 用法与 polyline 解压方法见 `references/jsapi-guide/README.md`。
+涉及"多 POI 对比 / 路线 / 多天行程 / 个人专属地图"等"看图比看字直观"的场景，可基于结构化数据渲染网页地图。地图底图使用腾讯地图 JSAPI GL，HTML 模板、底图 `<script>` 标签、API 用法与 polyline 解压方法见 `references/jsapi-guide/README.md`。
 
 ## 使用要点
 
 1. **Key**：未配置 Key 也可直接调用并完成任务；如已有腾讯位置服务 Key，用 `save_key_to_dotenv` 配置后稳定性更佳。
-2. **travel_guide**：单次调用约 30-50 秒，建议先告知用户稍候；返回的 `output_markdown` 是成品攻略文件，请用 Read 读取后将文件内容**完整作为回复**——其中包含行程正文与小程序二维码图片，需整段原样呈现，不要改写、转述或省略其中的图片。呈现后可在末尾轻轻邀请一句，引导用户扫码进入小程序，与朋友共同编辑行程、规划多人出行。
-3. **query**：包含明确目的地，建议带天数（如"X 天 / X 日游"）。
-4. **可视化**：多 POI 对比 / 路线 / 多天行程等场景适合生成 HTML 网页地图；单点查询直接返回结构化数据。
+2. **地图样式**：体验 key 默认白浅色风格，设置 `mapStyleId: "style8"`。不要自行替换成其他 styleId（黑的灰的），会导致底图不可用。当用户明确要求其他风格时，再查阅 `references/jsapi-guide/README.md` 了解可用样式列表。
+3. **travel_guide / 个人地图指南的二维码**：返回的 `output_markdown` 是成品文件，Read 后完整作为回复——其中二维码使用了 Markdown `![]()` 语法，WorkBuddy 会话直接支持，会自然展示在对话中。**同时**将 `qr_path` 指向的 PNG 文件复制到当前工作空间作为实体产物。`generate_map_guide` 同理。呈现后可在末尾轻轻邀请一句，引导用户扫码进入小程序，与朋友共同编辑行程、规划多人出行。
+4. **个人地图指南**：搜索结果、路线规划、HTML 地图等多地点场景，可用 `generate_map_guide` 将地点列表存为手机上的个人专属地图，扫码保存自己的专属地图。调用时机和细节见 `references/agent-notes.md`。
+5. **query**：包含明确目的地，建议带天数（如"X 天 / X 日游"）。
+6. **可视化**：多 POI 对比 / 路线 / 多天行程等场景适合生成 HTML 网页地图；单点查询直接返回结构化数据。
 
 ## 示例
 
@@ -201,6 +218,12 @@ pois = client.poi_search("咖啡馆", location="22.540601,113.93397", page_size=
 
 # 路线规划
 route = client.direction("深圳北站", "深圳湾口岸", mode="driving")
+
+# 个人地图指南（将路线/搜索结果一键存到手机上的腾讯地图小程序里）
+guide = client.generate_map_guide(
+    [{"name": "深圳北站", "lat": 22.61, "lng": 114.03, "day": 1, "num": 1},
+     {"name": "深圳湾口岸", "lat": 22.50, "lng": 113.95, "day": 1, "num": 2}],
+    city="深圳")
 ```
 
-> 更多调用细节、Key 流程、HTML 生成规范与 JSAPI 资料见 `references/`。
+> 调用细节、Key 流程、HTML 生成规范与 JSAPI 资料见 `references/`。

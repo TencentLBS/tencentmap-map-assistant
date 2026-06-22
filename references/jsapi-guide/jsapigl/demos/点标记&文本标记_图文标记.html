@@ -35,11 +35,11 @@
 
         // 初始化地图
         map = new TMap.Map('container', {
-          zoom: 13, // 设置地图缩放级别
+          zoom: 13,
+          mapStyleId: "style8",
           pitch: 30,
           center: center, // 设置地图中心点坐标
-          // mapStyleId: "style1", //个性化样式
-          baseMap: {
+          //baseMap: {
             type: 'vector',
             features: ['base', 'building3d'], // 隐藏矢量文字
           },

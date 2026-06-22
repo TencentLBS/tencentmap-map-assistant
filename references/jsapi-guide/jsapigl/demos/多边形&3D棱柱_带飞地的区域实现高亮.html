@@ -35,10 +35,9 @@
         // 初始化地图
         map = new TMap.Map('container', {
             zoom: 8,
+          mapStyleId: "style8",
             center: new TMap.LatLng(32.87441813772688, 119.32388989226047), // 设置地图中心点坐标
-            rotation: 0, // 旋转角度，
-            mapStyleId: 'style1',
-            baseMap: [
+            rotation: 0, // 旋转角度，baseMap: [
                 { type: 'vector', features: ['base'] },
                 {
                     type: 'traffic',

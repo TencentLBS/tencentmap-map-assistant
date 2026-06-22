@@ -33,7 +33,8 @@
     function initMap() {
       // 初始化地图
       const map = new TMap.Map("container", {
-        zoom: 12, // 设置地图缩放级别
+        zoom: 12,
+          mapStyleId: "style8",
         center: new TMap.LatLng(39.984104, 116.307503) // 设置地图中心点坐标
 		  });
       const marker = new TMap.MultiMarker({

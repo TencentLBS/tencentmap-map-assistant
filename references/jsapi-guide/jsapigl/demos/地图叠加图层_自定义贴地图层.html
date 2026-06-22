@@ -24,7 +24,6 @@
   }
 </style>
 
-
 <body>
 <div id="container"></div>
 <canvas id="canvas" width=300 height=300 style="display: none;"></canvas>
@@ -33,10 +32,10 @@
   var center = new TMap.LatLng(39.98187197091523, 116.31111860275269);
   //初始化地图
   var map = new TMap.Map("container", {
-    zoom: 15, //设置地图缩放级别
+    zoom: 15,
+          mapStyleId: "style8",
     center: center, //设置地图中心点坐标
   });
-
 
   var canvas = document.getElementById('canvas');
   var ctx = canvas.getContext("2d");

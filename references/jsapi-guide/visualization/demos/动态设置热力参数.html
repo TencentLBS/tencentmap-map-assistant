@@ -57,11 +57,10 @@
 
       //初始化地图
       var map = new TMap.Map("container", {
-        zoom: 12,//设置地图缩放级别
+        zoom: 12,
+          mapStyleId: "style8",
         pitch: 45, // 设置地图俯仰角
-        center: new TMap.LatLng(39.909897147274364, 116.39756310116866),//设置地图中心点坐标
-        mapStyleId: "style4" ,//个性化样式
-         baseMap: {
+        center: new TMap.LatLng(39.909897147274364, 116.39756310116866),//设置地图中心点坐标baseMap: {
             		type: "vector",
             		features: ["base", "building3d"], // 隐藏矢量文字
           		},

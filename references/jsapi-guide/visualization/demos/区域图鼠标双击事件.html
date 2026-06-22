@@ -47,11 +47,10 @@
 
             //初始化地图
             map = new TMap.Map("container", {
-                zoom: 15, //设置地图缩放级别
+                zoom: 15,
+          mapStyleId: "style8",
                 center: center, //设置地图中心点坐标
-                doubleClickZoom: false, // 禁用双击地图放大
-                mapStyleId: "style4", //个性化样式
-                baseMap: { //设置底图样式
+                doubleClickZoom: false, // 禁用双击地图放大baseMap: { //设置底图样式
                     type: 'vector', //设置底图为矢量底图
                     features: [ //设置矢量底图要素类型
                         'base',

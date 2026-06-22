@@ -80,9 +80,8 @@
         // 初始化地图
         var map = new TMap.Map("container", {
           zoom: 17,
-          pitch: 50,
-          mapStyleId:'style4',
-          baseMap: {
+          mapStyleId: "style8",
+          pitch: 50,baseMap: {
           type: "vector",
           features: ["base", "building3d"],
         },
@@ -211,6 +210,7 @@
               center: position,
               rotation: e.whiteDot.angle,
               zoom: 17,
+          mapStyleId: "style8",
               pitch: 50,
             },
             {

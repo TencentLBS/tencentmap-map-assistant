@@ -1,5 +1,5 @@
 """
-TencentMap_map-assistant · 客户端
+tencentmap-map-assistant-skill · 客户端
 
 封装腾讯位置服务 C 端能力：
 - 旅游攻略 travel_guide → 含小程序入口图（二维码）
@@ -431,6 +431,149 @@ class TmapClient:
         return result
 
     # ------------------------------------------------------------
+    # 地图指南生成（独立能力）—— 接收POI列表，自动构建Markdown并出二维码
+    # ------------------------------------------------------------
+
+    def generate_map_guide(
+        self,
+        pois: List[Dict[str, Any]],
+        city: str,
+        title: str = "我的指南",
+        query: str = "",
+        description: str = "",
+    ) -> Dict[str, Any]:
+        """将POI列表生成腾讯地图小程序指南（含二维码）。
+
+        本方法自动将POI列表转换为标准Markdown格式，然后调用
+        generate_guide_from_markdown() 生成指南。
+
+        :param pois: POI列表，每个POI应包含：
+            - name: 名称（必须）
+            - poi_id: POI ID（推荐，没有则传空串）
+            - lat: 纬度（float，会被自动转成 1e6 整数）
+            - lng: 经度（float，会被自动转成 1e6 整数）
+            - day: 天数分组（可选，默认1）
+            - num: 序号（可选，默认按输入顺序自动编号）
+            - type: POI类型（可选，默认1）
+            - search_query: 搜索关键词（可选，type=2时使用）
+            - inday: 散点所属天数（可选）
+        :param city: 城市名称（必须，否则保存接口无法解析）
+        :param title: 指南标题（可选，默认"我的指南"）
+        :param query: 用户原始查询（可选，用于攻略入库备注）
+        :param description: 行程/路线描述文本（可选），会插入到输出 markdown 正文中，
+            确保用户看到路线规划详情和二维码两部分内容
+        :return: {travel_guide_id, qr_code, qr_path, mini_program_username, output_markdown}
+        """
+        if not query:
+            query = title
+
+        markdown = self._build_markdown_from_pois(pois, city, title)
+        return self.generate_guide_from_markdown(markdown, query=query, description=description)
+
+    def _build_markdown_from_pois(
+        self,
+        pois: List[Dict[str, Any]],
+        city: str,
+        title: str = "我的指南",
+    ) -> str:
+        """将POI列表转换为保存接口要求的markdown格式。
+
+        严格按照腾讯地图小程序指南保存接口的markdown解析规则构建，
+        city 必须存在，lat/lng 自动乘以 1e6 转为整数。
+
+        :param pois: POI列表
+        :param city: 城市名称（必须）
+        :param title: 指南标题
+        :return: 标准Markdown格式字符串
+        """
+        lines: List[str] = [
+            f"### {title}(plan=1)",
+            "",
+            "### 我的指南",
+        ]
+        for i, poi in enumerate(pois, 1):
+            name = poi.get("name", f"点位{i}")
+            day = poi.get("day", 1)
+            num = poi.get("num", i)
+            poi_id = poi.get("poi_id", "")
+            lat = poi.get("lat", 0)
+            lng = poi.get("lng", 0)
+            lat_int = int(round(lat * 1e6))
+            lng_int = int(round(lng * 1e6))
+            ptype = poi.get("type", 1)
+            search_query = poi.get("search_query", "")
+            inday = poi.get("inday", 0)
+
+            params = f"city={city}&day={day}&num={num}&poi_id={poi_id}&lat={lat_int}&lng={lng_int}&type={ptype}"
+            if search_query:
+                params += f"&search_query={search_query}"
+            if inday > 0:
+                params += f"&inday={inday}"
+            lines.append(f"[{name}]({params})")
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------
+    # 生成地图指南（独立能力）—— 接收标准 Markdown，直接保存并出二维码
+    # ------------------------------------------------------------
+
+    def generate_guide_from_markdown(self, markdown: str, query: str = "", description: str = "") -> Dict[str, Any]:
+        """将标准 Markdown 格式的指南内容保存入库，并生成腾讯地图小程序入口二维码。
+
+        本方法直接调用 saveandgenqrcode 接口，跳过 A2A 攻略生成步骤。
+        适用于：用户已提供地点列表，直接生成地图指南并跳转手图的场景。
+
+        :param markdown: 标准 Markdown 格式字符串，点位链接格式为
+            [点位名](city=城市&day=天数&num=序号&poi_id=POI_ID&lat=纬度&lng=经度&type=类型)
+            指南标题格式为 ### [指南名称](plan=1)
+        :param query: 用户原始输入（用于攻略入库备注），默认空串
+        :param description: 行程/路线描述文本（可选），会嵌入输出 markdown 正文，
+            确保用户同时看到路线规划和二维码
+        :return: {travel_guide_id, qr_code, qr_path, mini_program_username, output_markdown}
+        """
+        if not query:
+            query = "地图指南"
+
+        saved = self._save_and_gen_qrcode(query, markdown)
+        tg_id = saved["travel_guide_id"]
+
+        result = {
+            "title": query,
+            "travel_guide_id": tg_id,
+            "qr_code": saved["qr_code"],
+            "qr_path": saved["qr_path"],
+            "expire_seconds": saved["expire_seconds"],
+            "mini_program_username": _MINI_PROGRAM_USERNAME,
+        }
+
+        # 落盘成品 markdown（含二维码图片语法）
+        md_path = os.path.join(self.output_dir, f"{tg_id}.md")
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(self._wrap_markdown_with_qrcode(markdown, saved["qr_path"], description))
+        result["output_markdown"] = md_path
+        return result
+
+    @staticmethod
+    def _wrap_markdown_with_qrcode(markdown: str, qr_path: str, description: str = "") -> str:
+        """在 Markdown 末尾附加小程序二维码图片语法。
+
+        输出给用户看的是 description（路线详情）+ 二维码。
+        POI 技术链接不再展示，仅供保存接口解析。
+
+        输出结构：description 正文 + 二维码 + 扫码引导
+        """
+        lines: List[str] = []
+        if description:
+            lines.append(description.strip())
+            if len(description.strip()) < 20:
+                lines.append("")
+                lines.append("> ⚠️ 行程描述过短，请补充各段距离和时间信息")
+            lines.append("")
+        lines.append(f"![腾讯地图小程序入口图]({qr_path})")
+        lines.append("")
+        lines.append("👆 微信扫码即可将以上行程保存到腾讯地图小程序，手机直接导航。")
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------
     # 把 result 渲染成「可直接贴给用户」的成品 markdown（含末尾二维码）
     # ------------------------------------------------------------
 
@@ -503,6 +646,8 @@ class TmapClient:
     ) -> Dict[str, Any]:
         """POI 关键词搜索（按城市或中心点）。
 
+        返回 ≥2 个结果时，必须紧接着调用 generate_map_guide() 生成小程序指南。
+
         :param keyword: 搜索词，必填
         :param region: 城市/区域，例如 "深圳" / "武汉"
         :param location: 中心点 "lat,lng"，与 region 二选一
@@ -567,6 +712,9 @@ class TmapClient:
         region: Optional[str] = None,
     ) -> Dict[str, Any]:
         """路线规划。先把起终点地址/景点名转坐标，再调腾讯路线接口。
+
+        调用本方法后，必须紧接着调用 generate_map_guide() 生成小程序指南。
+        路线详情和小程序指南必须同时出现在回复中，不可只给路线不给指南。
 
         :param from_addr: 起点地址 / POI 名 / "lat,lng"
         :param to_addr: 终点地址 / POI 名 / "lat,lng"

@@ -41,6 +41,7 @@ var endPosition = new TMap.LatLng(39.94174786983313, 116.353209380218); // 路�
 function initMap() {
   map = new TMap.Map("container", {
     zoom: 13,
+          mapStyleId: "style8",
     center: new TMap.LatLng(39.987683461261014, 116.27571820516232),
   });
   var marker = new TMap.MultiMarker({ // 创造MultiMarker显示起终点标记
@@ -126,7 +127,6 @@ function initMap() {
   
 }
 </script>
-
 
 <body onload="initMap()">
 	<div id="container"></div>

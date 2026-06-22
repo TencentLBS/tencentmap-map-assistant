@@ -34,7 +34,6 @@
     }
 </style>
 
-
 <body>
     <div id="container"></div>
     <div id="panel">
@@ -47,6 +46,7 @@
 <script type="text/javascript">
 var map = new TMap.Map('container', {
   zoom: 14,
+          mapStyleId: "style8",
   center: new TMap.LatLng(39.986785, 116.301012),
 });
 var geocoder = new TMap.service.Geocoder(); // 新建一个正逆地址解析类

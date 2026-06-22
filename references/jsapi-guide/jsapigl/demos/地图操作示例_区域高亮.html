@@ -32,11 +32,10 @@
       map = new TMap.Map('container', {
         // Map文档地址：https://lbs.qq.com/webApi/javascriptGL/glDoc/docIndexMap
         zoom: 9,
+          mapStyleId: "style8",
         center: new TMap.LatLng(40.15739276079734, 116.43926381582764), // 设置地图中心点坐标
         pitch: 20, // 俯仰度
-        rotation: 0, // 旋转角度，
-        mapStyleId: 'style1',
-        baseMap: [
+        rotation: 0, // 旋转角度，baseMap: [
           { type: 'vector', features: ['base'] },
           {
             type: 'traffic',

@@ -46,7 +46,8 @@
         //初始化地图一
         var mapOne = new TMap.Map("containerOne", {
             center,
-            zoom: 9, // 设置地图缩放级别
+            zoom: 9,
+          mapStyleId: "style8",
         });
 
         var geoLayerOne = new TMap.vector.GeoJSONLayer({
@@ -89,7 +90,8 @@
         //初始化地图二
         var mapTwo = new TMap.Map("containerTwo", {
             center,
-            zoom: 9, // 设置地图缩放级别
+            zoom: 9,
+          mapStyleId: "style8",
         });
         var geoLayerTwo = new TMap.vector.GeoJSONLayer({
             map: mapTwo,

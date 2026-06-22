@@ -93,7 +93,8 @@
         var center = new TMap.LatLng(40.13659649977259, 116.51136018387479);
         //初始化地图
         var map = new TMap.Map("container", {
-            zoom: 9, // 设置地图缩放级别
+            zoom: 9,
+          mapStyleId: "style8",
             center, // 设置地图中心点坐标
         });
         var geoLayer = new TMap.vector.GeoJSONLayer({

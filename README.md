@@ -1,9 +1,9 @@
-# TencentMap Map Assistant Skill
+# tencentmap-map-assistant-skill
 
 腾讯位置服务出品。一句自然语言调用腾讯地图全套能力——AI 旅游攻略、地点搜索、路线规划、地址解析、天气查询，无需开发者账号、开箱即用。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.4.4-green.svg)](https://github.com/TencentLBS/tencentmap-map-assistant)
+[![Version](https://img.shields.io/badge/version-1.4.4-green.svg)](https://github.com/TencentLBS/tencentmap-map-assistant-skill)
 
 ---
 
@@ -168,7 +168,7 @@ IP → 位置。不传 IP 则定位调用方公网 IP。
 ## 📁 项目结构
 
 ```
-tencentmap-map-assistant/
+tencentmap-map-assistant-skill/
 ├── SKILL.md                          # Skill 定义与使用说明
 ├── scripts/
 │   └── tmap_client.py                # 核心客户端（所有 API 封装）

@@ -32,11 +32,10 @@
             var data = arcData;
             //初始化地图
             var map = new TMap.Map("container", {
-                zoom: 5,//设置地图缩放级别
+                zoom: 5,
+          mapStyleId: "style8",
                 pitch: 30,
-                center: center,//设置地图中心点坐标
-                mapStyleId: "style4", //个性化样式
-               baseMap: {
+                center: center,//设置地图中心点坐标baseMap: {
             		type: "vector",
             		features: ["base", "building3d"], // 隐藏矢量文字
           		},

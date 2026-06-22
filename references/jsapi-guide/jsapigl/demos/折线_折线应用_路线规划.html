@@ -38,7 +38,8 @@ function initMap(){
 	//初始化地图
 	map = new TMap.Map('mapContainer', {
 		center: new TMap.LatLng(39.980619,116.321277),//地图显示中心点
-		zoom:14	//缩放级别
+		zoom:14,
+          mapStyleId: "style8",
 	});
 
 	//WebServiceAPI请求URL（驾车路线规划默认会参考实时路况进行计算）
@@ -47,7 +48,6 @@ function initMap(){
 	url+="&to=39.977263,116.337063";  //终点坐标
 	url+="&output=jsonp&callback=cb" ;	//指定JSONP回调函数名，本例为cb
 	url+="&key=OB4BZ-D4W3U-B7VVO-4PJWW-6TKDJ-WPB77"; //开发key，可在控制台自助创建
-
 
 	//发起JSONP请求，获取路线规划结果
 	jsonp_request(url);

@@ -44,11 +44,10 @@
             var data = citydata.bj;
             //初始化地图
             var map = new TMap.Map("container", {
-                zoom:10,//设置地图缩放级别
+                zoom:10,
+          mapStyleId: "style8",
                 pitch: 45, // 设置地图俯仰角
-                center: center, //设置地图中心点坐标
-                mapStyleId: "style4", //个性化样式
-               baseMap: {
+                center: center, //设置地图中心点坐标baseMap: {
             		type: "vector",
             		features: ["base", "building3d"], // 隐藏矢量文字
           		},

@@ -84,6 +84,31 @@ HTML 地图底图直接用下面这行 `<script>`（URL 与 key 照抄，不要�
 
 这是腾讯地图公开的 JSAPI GL 加载 key，放进 HTML `<head>` 即可显示底图。使用者若已配置自己的 key，可替换为自己的。
 
+### 地图样式
+
+**默认使用白浅（style8）**。体验 key 实际绑定了以下样式，日常使用白浅即可，不要随意替换。
+
+```js
+const map = new TMap.Map('map', {
+  center: new TMap.LatLng(39.9, 116.4), zoom: 12,
+  mapStyleId: "style8"  // 默认白浅，不要改成其他
+});
+```
+
+| styleId | 样式名称 | 说明 |
+|---------|---------|------|
+| style1 | 可视化官网黑光字 | 黑底 |
+| style2 | 星渊 | 深蓝黑底 |
+| style3 | 玉露 | 绿底 |
+| style4 | 黑色极简 | 黑底 |
+| style5 | 璃青 | 浅绿底 |
+| style6 | 玄青 | 深灰黑底 |
+| style7 | 浅色底图-可视化 | 浅灰白 |
+| style8 | **白浅** ☜ 默认 | 白色 |
+| style9 | 经典 | 标准 |
+
+> 默认已绑定 9 个样式，用户配置自己的 key 后可在控制台扩展更多。
+
 ## HTML 生成示例
 
 地图能力使用 `TMap.Map` + `TMap.MultiMarker` + `TMap.MultiPolyline` + `TMap.InfoWindow`。把 POI 数据换成 client 返回的真实坐标即可：
@@ -108,7 +133,8 @@ html = f'''<!DOCTYPE html><html><head><meta charset="utf-8">
 </head><body><div id="map"></div><script>
 const pts = {markers_js};
 const map = new TMap.Map('map', {{
-  center: new TMap.LatLng(pts[0].position[0], pts[0].position[1]), zoom: 12
+  center: new TMap.LatLng(pts[0].position[0], pts[0].position[1]), zoom: 12,
+  mapStyleId: "style8"
 }});
 new TMap.MultiMarker({{ map, geometries: pts.map(p => ({{
   id: p.id, position: new TMap.LatLng(p.position[0], p.position[1]), properties: {{title: p.title}}
