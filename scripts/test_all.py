@@ -38,7 +38,7 @@ def test(name, fn):
         results.append({"name": name, "ok": False, "error": msg})
 
 print("=" * 60)
-print("Key 来源:", client.key_source, "| 体验模式:", client.is_experience_mode)
+print("Key 来源:", client.key_source)
 print("=" * 60)
 
 # 1. geocoder — 地址解析

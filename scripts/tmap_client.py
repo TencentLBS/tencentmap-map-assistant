@@ -7,8 +7,8 @@ tencentmap-map-assistant-skill · 客户端
 - 地址坐标互转 / 输入补全 / IP 定位 / 行政区划 / 距离矩阵 → 数据
 
 key 策略：
-- 检测顺序：用户传入参数 → TMAP_KEY 环境变量 → skill 包内 .env 文件
-- 若三者都没有 → 走体验通道（h5gw + key=none + apptag）继续完成任务，额度和稳定性受限。
+- 检测顺序：用户传入参数 → TMAP_KEY 环境变量 → skill 包内 .env 文件 → ~/.tencentmap/tempkey.json
+- 若都没有 → 抛出异常，由 AI 引导用户通过 tempkey 流程申请临时 Key
 """
 
 import os
@@ -19,6 +19,7 @@ import hashlib
 import hmac
 import random
 import string
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -36,8 +37,7 @@ _OPERATION_USER_ID = "50000000002"
 
 # 服务端点
 _WS_BASE = "https://apis.map.qq.com"           # 正式 key 通道
-_H5GW_BASE = "https://h5gw.map.qq.com"         # 体验通道（key=none + apptag + jsonp）
-_A2A_URL = "https://h5gw.map.qq.com/aichat/v1/a2a"   # AI 旅游攻略 A2A（体验通道）
+_A2A_URL = "https://h5gw.map.qq.com/aichat/v1/a2a"   # AI 旅游攻略 A2A（服务端 AI 服务，独立通道）
 # 旅游攻略保存并出二维码（保存+出码合一接口，正式公网域名）
 _TG_SAVE_QR_URL = "https://h5gw.map.qq.com/travelguide/saveandgenqrcode"
 
@@ -50,24 +50,6 @@ _A2A_TIMEOUT = 300  # SSE 长连接
 
 # 地点搜索/输入提示富信息字段（评分、人均、营业时间）
 _RICH_ADDED_FIELDS = "star_level,avg_price,opening_hours"
-
-# 体验通道：每个 path 对应专用 apptag
-_APPTAG_MAP = {
-    "/ws/geocoder/v1":             "lbs_geocoder",
-    "/ws/place/v1/search":         "h5mutipos_place_search",
-    "/ws/place/v1/suggestion":     "lbsplace_sug",
-    "/ws/place/v1/detail":         "lbsplace_detail",
-    "/ws/location/v1/ip":          "lbslocation_ip",
-    "/ws/district/v1/list":        "lbsdistrict_list",
-    "/ws/district/v1/getchildren": "lbsdistrict_getchildren",
-    "/ws/district/v1/search":      "lbsdistrict_search",
-    "/ws/direction/v1/driving":    "lbsdirection_driving",
-    "/ws/direction/v1/transit":    "lbsdirection_transit",
-    "/ws/direction/v1/walking":    "lbsdirection_walking",
-    "/ws/direction/v1/bicycling":  "lbsdirection_bicycling",
-    "/ws/distance/v1/matrix":      "lbsdistance_matrix",
-    "/ws/weather/v1":              "lbs_weather",
-}
 
 
 # ============================================================
@@ -95,10 +77,56 @@ def _load_env_file(env_path: str) -> Dict[str, str]:
     return out
 
 
-def _resolve_key(passed_key: Optional[str]) -> Tuple[Optional[str], str]:
-    """按 用户传入 → 环境变量 → skill 包内 .env 文件 顺序解析 key。
+def _load_tempkey() -> Tuple[Optional[str], str]:
+    """从 ~/.tencentmap/tempkey.json 读取临时 Key。
 
-    :return: (key, source) — key 可能为 None（走体验通道），source 标识来源
+    tempkey.json 由 tencentmap-tempkey skill 的 save_config.py 写入，
+    结构为 {"phone": {"key": "...", "expire_time": "YYYY-MM-DD HH:MM:SS", "status": "active", ...}}
+
+    :return: (key, source) — key 可能为 None（文件不存在或已过期），source 为 "tempkey" 或 "none"
+    """
+    tempkey_path = os.path.join(os.path.expanduser("~"), ".tencentmap", "tempkey.json")
+    if not os.path.exists(tempkey_path):
+        return None, "none"
+    try:
+        with open(tempkey_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        # 实际格式：dict 以手机号为 key，value 为含 key/expire_time/status 的对象
+        if isinstance(data, dict):
+            entries = list(data.values())
+        elif isinstance(data, list):
+            entries = data
+        else:
+            return None, "none"
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            key = entry.get("key")
+            expire_str = entry.get("expire_time", "")
+            status = entry.get("status", "active")
+            if not key or not expire_str:
+                continue
+            # 跳过已标记过期的记录
+            if status == "expired":
+                continue
+            # 检查是否过期（支持 "YYYY-MM-DD HH:MM:SS" 和 "YYYY-MM-DD" 两种格式）
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+                try:
+                    expire_dt = datetime.strptime(expire_str, fmt)
+                    if datetime.now() < expire_dt:
+                        return key, "tempkey"
+                    break  # 解析成功但已过期，跳到下一条
+                except ValueError:
+                    continue
+    except Exception:
+        pass
+    return None, "none"
+
+
+def _resolve_key(passed_key: Optional[str]) -> Tuple[Optional[str], str]:
+    """按 用户传入 → 环境变量 → skill 包内 .env 文件 → tempkey.json 顺序解析 key。
+
+    :return: (key, source) — key 可能为 None（无可用 Key），source 标识来源
     """
     if passed_key:
         return passed_key, "argument"
@@ -113,7 +141,11 @@ def _resolve_key(passed_key: Optional[str]) -> Tuple[Optional[str], str]:
         # 同步写入 os.environ 以便后续模块读取
         os.environ["TMAP_KEY"] = file_key
         return file_key, "dotenv"
-    return None, "experience"
+    # 检查 tempkey.json
+    tempkey, tempkey_source = _load_tempkey()
+    if tempkey:
+        return tempkey, tempkey_source
+    return None, "none"
 
 
 def save_key_to_dotenv(key: str) -> str:
@@ -141,13 +173,13 @@ class TmapClient:
     """腾讯位置服务地图助手客户端。
 
     用法：
-        # 1) 客户已配置 TMAP_KEY → 直接用
+        # 1) 客户已配置 TMAP_KEY 或 tempkey → 直接用
         client = TmapClient()
 
         # 2) 客户传入正式 key（也会同步落到 .env）
         client = TmapClient(key="XXX-XXX-XXX-XXX-XXX-XXX", persist=True)
 
-        # 3) 客户未配置 → 走体验通道（不传 key 即可）
+        # 3) 客户未配置且无 tempkey → 初始化成功但调用时报错，AI 引导 tempkey 流程
         client = TmapClient()
     """
 
@@ -158,9 +190,8 @@ class TmapClient:
         persist: bool = False,
     ):
         resolved, source = _resolve_key(key)
-        self.key = resolved                       # None 表示体验通道
-        self.key_source = source                  # 'argument' / 'env' / 'dotenv' / 'experience'
-        self.is_experience_mode = resolved is None
+        self.key = resolved                       # None 表示无可用 Key
+        self.key_source = source                  # 'argument' / 'env' / 'dotenv' / 'tempkey' / 'none'
         if persist and key:
             save_key_to_dotenv(key)
             self.key_source = "dotenv"
@@ -183,34 +214,24 @@ class TmapClient:
         return {"get_rich": 1, "added_fields": _RICH_ADDED_FIELDS}
 
     def _ws_get(self, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """通用 WebService GET，自动选通道。
+        """通用 WebService GET，走 apis.map.qq.com 正式通道。
 
-        - 体验通道（self.key is None）→ 走 h5gw（key=none + apptag + jsonp 包裹）
-        - 正式 key → 走 apis.map.qq.com
+        :raises TmapError: 当 self.key 为 None 时抛出异常，提示需申请 Key
         """
-        import re
+        if self.key is None:
+            raise TmapError(
+                -1,
+                "未检测到 API Key。请通过 tempkey 流程申请临时体验 Key（手机验证，14 天有效），"
+                "或配置环境变量 TMAP_KEY / .env 文件后重试。",
+                path,
+                {},
+            )
         params = {k: v for k, v in params.items() if v is not None and v != ""}
-        if self.is_experience_mode:
-            base = _H5GW_BASE
-            params["key"] = "none"
-            params["apptag"] = _APPTAG_MAP.get(path, "lbs")
-            params["output"] = "jsonp"
-            params["callback"] = "cb"
-        else:
-            base = _WS_BASE
-            params["key"] = self.key
-
-        url = f"{base}{path}"
+        params["key"] = self.key
+        url = f"{_WS_BASE}{path}"
         r = requests.get(url, params=params, timeout=_TIMEOUT)
         r.raise_for_status()
-        text = r.text.strip()
-        # h5gw 返回 jsonp：name&&callback({...});
-        m = re.match(r"^[a-zA-Z_][\w]*&&[a-zA-Z_][\w]*\((.*)\);?\s*$", text, re.S)
-        if m:
-            text = m.group(1)
-        elif text.startswith(("qq.maps.callback(", "callback(", "cb(")):
-            text = text[text.index("(") + 1 : text.rindex(")")]
-        data = json.loads(text)
+        data = r.json()
         if data.get("status") != 0:
             raise TmapError(data.get("status"), data.get("message", "unknown error"), path, data)
         return data

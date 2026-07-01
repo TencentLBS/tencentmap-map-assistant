@@ -76,22 +76,22 @@ jsapi-guide/
 
 ## API Key
 
-HTML 地图底图直接用下面这行 `<script>`（URL 与 key 照抄，不要改动、不要自己编 key）：
+HTML 地图底图使用 client 解析到的 Key（tempkey / 环境变量 `TMAP_KEY` / `.env` 文件），在 `<script>` 标签中引用。生成 HTML 时将 `TMAP_KEY` 替换为实际解析到的 Key：
 
 ```html
-<script src="https://map.qq.com/api/gljs?v=1&key=OB4BZ-D4W3U-B7VVO-4PJWW-6TKDJ-WPB77"></script>
+<script src="https://map.qq.com/api/gljs?v=1&key={TMAP_KEY}"></script>
 ```
 
-这是腾讯地图公开的 JSAPI GL 加载 key，放进 HTML `<head>` 即可显示底图。使用者若已配置自己的 key，可替换为自己的。
+tempkey 生成的 Key 同时支持 JSAPI 底图加载和 WebService API 调用，放进 HTML `<head>` 即可显示底图。未配置 Key 时需先通过 tempkey 流程申请临时体验 Key。
 
 ### 地图样式
 
-**默认使用白浅（style8）**。体验 key 实际绑定了以下样式，日常使用白浅即可，不要随意替换。
+**使用系统默认样式即可，无需设置 `mapStyleId`**。若用户希望修改地图样式，可引导其前往腾讯位置服务官网登录账号，在控制台为对应 Key 配置样式后使用；下方样式表供已在控制台配置自定义样式的用户参考。
 
 ```js
 const map = new TMap.Map('map', {
-  center: new TMap.LatLng(39.9, 116.4), zoom: 12,
-  mapStyleId: "style8"  // 默认白浅，不要改成其他
+  center: new TMap.LatLng(39.9, 116.4), zoom: 12
+  // 使用系统默认样式；如需自定义样式，在官网控制台为 Key 配置后再设置 mapStyleId
 });
 ```
 
@@ -104,10 +104,10 @@ const map = new TMap.Map('map', {
 | style5 | 璃青 | 浅绿底 |
 | style6 | 玄青 | 深灰黑底 |
 | style7 | 浅色底图-可视化 | 浅灰白 |
-| style8 | **白浅** ☜ 默认 | 白色 |
+| style8 | 白浅 | 白色 |
 | style9 | 经典 | 标准 |
 
-> 默认已绑定 9 个样式，用户配置自己的 key 后可在控制台扩展更多。
+> 以上样式均需在官网控制台为 Key 配置后可用。tempkey 及未配置的正式 Key 使用系统默认样式，无需设置 `mapStyleId`。
 
 ## HTML 生成示例
 
@@ -129,12 +129,11 @@ markers_js = json.dumps(
 
 html = f'''<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>html,body,#map{{height:100%;margin:0}}</style>
-<script src="https://map.qq.com/api/gljs?v=1&key=OB4BZ-D4W3U-B7VVO-4PJWW-6TKDJ-WPB77"></script>
+<script src="https://map.qq.com/api/gljs?v=1&key={TMAP_KEY}"></script>
 </head><body><div id="map"></div><script>
 const pts = {markers_js};
 const map = new TMap.Map('map', {{
-  center: new TMap.LatLng(pts[0].position[0], pts[0].position[1]), zoom: 12,
-  mapStyleId: "style8"
+  center: new TMap.LatLng(pts[0].position[0], pts[0].position[1]), zoom: 12
 }});
 new TMap.MultiMarker({{ map, geometries: pts.map(p => ({{
   id: p.id, position: new TMap.LatLng(p.position[0], p.position[1]), properties: {{title: p.title}}

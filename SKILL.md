@@ -2,7 +2,7 @@
 name: tencentmap-map-assistant-skill
 description: 腾讯地图·地图助手 Skill，一句自然语言调用腾讯地图全套能力，无需开发者账号、开箱即用。提供 AI 旅游攻略、地点搜索（含评分/人均/营业时间）、关键词提示、路线规划（驾车/步行/公交/骑行）、地址解析与逆解析、行政区划、IP 定位、距离计算、天气查询，并可将行程或多 POI 渲染成网页地图或生成腾讯地图小程序指南。涉及找地点、规划路线、旅游行程、查天气、坐标转换等出行场景时使用。
 license: MIT
-version: 1.4.5
+version: 1.4.7
 ---
 
 # 地图助手 Skill
@@ -57,7 +57,18 @@ from tmap_client import save_key_to_dotenv
 save_key_to_dotenv("你的 Key")
 ```
 
-> 未配置 Key 也可调用，任务正常完成；配置后稳定性与频次更优。
+
+## Key 检查
+
+1. 已有 Key（用户传入 `TmapClient(key=...)`、环境变量 `TMAP_KEY`、skill 包内 `.env` 文件或 `~/.tencentmap/tempkey.json`）→ 直接使用
+
+2. 未检测到 Key 时向用户输出以下选项：
+
+   > - **申请临时体验 Key（推荐）**：手机验证即可，14 天有效
+   > - **前往官网注册正式 Key**：https://lbs.qq.com/dev/console/key/manage
+
+3. 用户选择"申请临时 Key" → 读取 `tempkey-guide.md` 按其中步骤执行
+
 
 ## 参数与返回
 
@@ -76,9 +87,11 @@ save_key_to_dotenv("你的 Key")
 
 `generate_map_guide(pois, city, title="我的指南", query="", description="")`：将任意地点列表（搜索结果、路线点、打卡记录）一键保存为腾讯地图小程序里的个人专属地图，在手机上随时查看和导航。
 
+> **前置步骤**：构造 `pois` 前，先对每个地点调用 `poi_search()`拿到真实的 `id` 与 `location.lat` / `location.lng`，再映射成 `pois` 所需的 `poi_id` / `lat` / `lng`。
+
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `pois` | List[Dict] | 是 | POI 列表，每个 POI 应包含 `name` / `lat` / `lng`，推荐含 `poi_id` |
+| `pois` | List[Dict] | 是 | POI 列表，每个 POI 含 `name` / `lat` / `lng` / `poi_id`。这些值应取自 `poi_search()` / `poi_sug()` 的真实返回后填入 |
 | `city` | str | 是 | 城市名称 |
 | `title` | str | 否 | 指南标题，默认"我的指南" |
 | `query` | str | 否 | 用户原始输入（用于入库备注） |
@@ -198,8 +211,8 @@ district_search(keyword)         # 关键词搜区划
 
 ## 使用要点
 
-1. **Key**：未配置 Key 也可直接调用并完成任务；如已有腾讯位置服务 Key，用 `save_key_to_dotenv` 配置后稳定性更佳。
-2. **地图样式**：体验 key 默认白浅色风格，设置 `mapStyleId: "style8"`。不要自行替换成其他 styleId（黑的灰的），会导致底图不可用。当用户明确要求其他风格时，再查阅 `references/jsapi-guide/README.md` 了解可用样式列表。
+1. **Key**：未配置 Key 时按"Key 检查"流程处理；如已有 Key，用 `save_key_to_dotenv` 配置后稳定性更佳
+2. **地图样式**：使用 tempkey 或正式 Key 时使用系统默认样式，无需设置 `mapStyleId`。若用户希望修改地图样式，可引导用户前往腾讯位置服务官网登录账号，在控制台为对应 Key 配置样式后使用。
 3. **travel_guide / 个人地图指南的二维码**：返回的 `output_markdown` 是成品文件，Read 后完整作为回复——其中二维码使用了 Markdown `![]()` 语法，WorkBuddy 会话直接支持，会自然展示在对话中。**同时**将 `qr_path` 指向的 PNG 文件复制到当前工作空间作为实体产物。`generate_map_guide` 同理。呈现后可在末尾轻轻邀请一句，引导用户扫码进入小程序，与朋友共同编辑行程、规划多人出行。
 4. **个人地图指南**：搜索结果、路线规划、HTML 地图等多地点场景，可用 `generate_map_guide` 将地点列表存为手机上的个人专属地图，扫码保存自己的专属地图。调用时机和细节见 `references/agent-notes.md`。
 5. **query**：包含明确目的地，建议带天数（如"X 天 / X 日游"）。
@@ -214,15 +227,17 @@ client = TmapClient()
 r = client.travel_guide("成都3天美食游")
 
 # POI 搜索
-pois = client.poi_search("咖啡馆", location="22.540601,113.93397", page_size=5)
+res = client.poi_search("咖啡馆", location="22.540601,113.93397", page_size=5)
 
 # 路线规划
 route = client.direction("深圳北站", "深圳湾口岸", mode="driving")
 
-# 个人地图指南（将路线/搜索结果一键存到手机上的腾讯地图小程序里）
+# 个人地图指南：先用 poi_search 拿到真实 POI，再映射成 pois
+p1 = client.poi_search("深圳北站", region="深圳")["data"][0]
+p2 = client.poi_search("深圳湾口岸", region="深圳")["data"][0]
 guide = client.generate_map_guide(
-    [{"name": "深圳北站", "lat": 22.61, "lng": 114.03, "day": 1, "num": 1},
-     {"name": "深圳湾口岸", "lat": 22.50, "lng": 113.95, "day": 1, "num": 2}],
+    [{"name": p1["title"], "lat": p1["location"]["lat"], "lng": p1["location"]["lng"], "poi_id": p1["id"], "day": 1, "num": 1},
+     {"name": p2["title"], "lat": p2["location"]["lat"], "lng": p2["location"]["lng"], "poi_id": p2["id"], "day": 1, "num": 2}],
     city="深圳")
 ```
 

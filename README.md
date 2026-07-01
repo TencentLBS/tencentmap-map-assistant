@@ -64,7 +64,7 @@ weather = client.weather(adcode="110000", type="now")
 
 ### 配置正式 Key
 
-未配置 Key 时可直接调用（走体验通道，频次和稳定性受限）。如已有腾讯位置服务 Key：
+未配置 Key 时可通过 tempkey 流程申请临时体验 Key（手机验证，14 天有效，覆盖 WebService API + JSAPI 底图加载）。如已有腾讯位置服务 Key：
 
 ```python
 from scripts.tmap_client import save_key_to_dotenv
@@ -210,7 +210,7 @@ markers_js = json.dumps(
 
 html = f'''<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>html,body,#map{{height:100%;margin:0}}</style>
-<script src="https://map.qq.com/api/gljs?v=1&key=OB4BZ-D4W3U-B7VVO-4PJWW-6TKDJ-WPB77"></script>
+<script src="https://map.qq.com/api/gljs?v=1&key={TMAP_KEY}"></script>
 </head><body><div id="map"></div><script>
 const pts = {markers_js};
 const map = new TMap.Map('map', {{
@@ -234,6 +234,6 @@ with open("map.html", "w", encoding="utf-8") as f:
 
 | 场景 | 行为 |
 |:-----|:-----|
-| 未配置 Key | 自动走体验通道（h5gw），结果正常返回，频次和稳定性受限 |
+| 未配置 Key | 需通过 tempkey 流程申请临时体验 Key，或配置正式 Key |
 | 已配置 Key | 走正式通道（apis.map.qq.com），使用你自己的额度 |
-| Key 优先级 | 传入参数 → 环境变量 `TMAP_KEY` → `.env` 文件 → 体验通道 |
+| Key 优先级 | 传入参数 → 环境变量 `TMAP_KEY` → `.env` 文件 → `~/.tencentmap/tempkey.json` |

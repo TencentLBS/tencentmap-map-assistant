@@ -9,20 +9,19 @@
 - client 仅依赖 `requests`，多数环境已自带，可直接调用；仅当报 `ModuleNotFoundError: requests` 时执行 `pip install requests` 后重试。
 - 调用报错时，读返回的报错信息（key / 网络 / 参数）定位，对应调整后重试。
 
-## Key 策略：默认体验通道，按需配置正式 Key
+## Key 策略：检查 tempkey，按需配置正式 Key
 
 每个使用者的腾讯位置服务额度独立。
 
-- **默认直接调用**：未配置 Key 时 client 自动走体验通道，结果照常返回，无需在调用前询问。
+- **Key 解析顺序**：用户传入参数 → 环境变量 `TMAP_KEY` → skill 包内 `.env` 文件 → `~/.tencentmap/tempkey.json`（临时体验 Key）。
+- **无 Key 时**：client 初始化成功，但调用 WebService API 时会抛出 `TmapError`。此时 AI 应引导用户通过 tempkey 流程申请临时体验 Key（手机验证，14 天有效，覆盖 WebService API + JSAPI 底图加载）。**必须读取 `tempkey-guide.md` 获取完整申请流程**（协议展示、脚本调用、错误码表、输出模板等），严格按照其中步骤执行。
 - **配置正式 Key**：使用者提供 Key 时，用 `save_key_to_dotenv("Key")` 持久化到 skill 包内 `.env`，重新初始化 client 后自动走正式通道。
 
 ```python
 from tmap_client import TmapClient, save_key_to_dotenv
-c = TmapClient()                 # 未配 Key → 体验通道；已配 → 正式通道
+c = TmapClient()                 # 自动解析 Key（env / .env / tempkey.json）
 # save_key_to_dotenv("XXX-...")  # 使用者提供 Key 时调用
 ```
-
-体验通道完成任务后，可在回复末尾轻提一句：如已有正式 Key 可配置，后续走正式通道，稳定性与频次更优。已配正式 Key 时无需提示。
 
 ## 返回结构：对齐腾讯位置服务官方
 
@@ -56,33 +55,7 @@ c = TmapClient()                 # 未配 Key → 体验通道；已配 → 正�
 
 涉及"多 POI 对比 / 路线 / 多天行程 / 个人专属地图"等"看图比看字更直观"的场景，可基于结构化数据生成 HTML 网页地图。底图 key、HTML 生成示例、polyline 解压方法、各类 API 与 demo 全部见 `references/jsapi-guide/README.md`，照其中模板生成即可。
 
-> 默认使用 style8（白浅）。体验 key 绑定了 9 种样式（见 README），日常不要改；用户明确要求其他风格时再查阅。
-
-## 体验通道技术细节（client 已封装，正常调用无需关心）
-
-未配置正式 Key 时，client 自动走体验通道：
-
-- **后端服务**：域名走 `https://h5gw.map.qq.com`，`key=none`，按接口附带 `apptag`，返回 JSONP（client 自动解包，调用方拿到的是解析好的 dict）。
-- **前端地图**：JSAPI GL 底图用公开加载 key（见 `jsapi-guide/README.md` 的 `<script>` 模板），与后端通道无关。
-- 体验通道频次与稳定性受限，常规使用建议配置正式 Key。
-
-各接口 `apptag` 对照（client 内置，仅供排查参考）：
-
-| 接口路径 | apptag |
-|---------|--------|
-| `/ws/place/v1/search` | `h5mutipos_place_search` |
-| `/ws/place/v1/suggestion` | `lbsplace_sug` |
-| `/ws/place/v1/detail` | `lbsplace_detail` |
-| `/ws/geocoder/v1` | `lbs_geocoder` |
-| `/ws/location/v1/ip` | `lbslocation_ip` |
-| `/ws/district/v1/list` | `lbsdistrict_list` |
-| `/ws/district/v1/getchildren` | `lbsdistrict_getchildren` |
-| `/ws/district/v1/search` | `lbsdistrict_search` |
-| `/ws/direction/v1/driving` | `lbsdirection_driving` |
-| `/ws/direction/v1/transit` | `lbsdirection_transit` |
-| `/ws/direction/v1/walking` | `lbsdirection_walking` |
-| `/ws/direction/v1/bicycling` | `lbsdirection_bicycling` |
-| `/ws/distance/v1/matrix` | `lbsdistance_matrix` |
+> 使用系统默认样式即可。若用户希望修改地图样式，可引导其前往腾讯位置服务官网登录账号，在控制台为对应 Key 配置样式后使用。
 
 ## 个人地图指南（generate_map_guide）
 
@@ -104,10 +77,13 @@ c = TmapClient()                 # 未配 Key → 体验通道；已配 → 正�
 ```python
 # 路线规划 + 出码的标准流程
 route = client.direction("深圳北站", "深圳湾口岸", mode="driving")
-# 从路线结果取起终点坐标，调用 generate_map_guide
+
+# 先用 poi_search 获取真实 POI（id + location 坐标），再映射生成指南
+p1 = client.poi_search("深圳北站", region="深圳")["data"][0]
+p2 = client.poi_search("深圳湾口岸", region="深圳")["data"][0]
 guide = client.generate_map_guide(
-    [{"name": "深圳北站", "lat": 22.61, "lng": 114.03, "day": 1, "num": 1},
-     {"name": "深圳湾口岸", "lat": 22.50, "lng": 113.95, "day": 1, "num": 2}],
+    [{"name": p1["title"], "lat": p1["location"]["lat"], "lng": p1["location"]["lng"], "poi_id": p1["id"], "day": 1, "num": 1},
+     {"name": p2["title"], "lat": p2["location"]["lat"], "lng": p2["location"]["lng"], "poi_id": p2["id"], "day": 1, "num": 2}],
     city="深圳",
     description="深圳北站 → 深圳湾口岸，约15公里，驾车约30分钟"
 )
@@ -116,11 +92,13 @@ guide = client.generate_map_guide(
 
 ### pois 字段说明
 
+> **数据来源**：`lat` / `lng` / `poi_id` 取自 `poi_search()` / `poi_sug()` 的真实返回（搜索结果中坐标位于 `location.lat/lng`、ID 为 `id`），映射后填入。生成指南前先逐点搜索。
+
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `name` | str | 是 | 地点名称 |
-| `lat` / `lng` | float | 是 | GCJ02 坐标 |
-| `poi_id` | str | 推荐 | POI ID，有则传入保证精度 |
+| `name` | str | 是 | 地点名称，取自搜索返回的 `title` |
+| `lat` / `lng` | float | 是 | GCJ02 坐标，取自搜索返回的 `location.lat` / `location.lng` |
+| `poi_id` | str | 是 | POI ID，取自搜索返回的 `id`，保证定位精度 |
 | `day` | int | 否 | 天分组，默认 1 |
 | `num` | int | 否 | 序号，默认按输入顺序编号 |
 | `type` | int | 否 | POI 类型，默认 1。`2` 表示搜索词类型（需配合 `search_query`） |
