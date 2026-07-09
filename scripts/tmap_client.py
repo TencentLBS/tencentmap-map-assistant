@@ -213,6 +213,19 @@ class TmapClient:
         """富信息字段参数（评分 star_level / 人均 avg_price / 营业时间 opening_hours）。"""
         return {"get_rich": 1, "added_fields": _RICH_ADDED_FIELDS}
 
+    def _place_search_get(self, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """地点搜索类请求：先带富信息参数，若 Key 无 get_rich 权限报 113
+        （此功能未被授权），自动去掉 get_rich / added_fields 重试一次，
+        只返回基础字段（名称 / 坐标 / 地址）。"""
+        try:
+            return self._ws_get(path, params)
+        except TmapError as e:
+            if e.code == 113:
+                fallback = {k: v for k, v in params.items()
+                            if k not in ("get_rich", "added_fields")}
+                return self._ws_get(path, fallback)
+            raise
+
     def _ws_get(self, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """通用 WebService GET，走 apis.map.qq.com 正式通道。
 
@@ -687,7 +700,7 @@ class TmapClient:
             "page_index": page_index,
         }
         params.update(self._rich_params())
-        return self._ws_get("/ws/place/v1/search", params)
+        return self._place_search_get("/ws/place/v1/search", params)
 
     def poi_detail(self, poi_id: str) -> Dict[str, Any]:
         """根据 POI ID 取详情。
@@ -722,7 +735,7 @@ class TmapClient:
             "page_index": page_index,
         }
         params.update(self._rich_params())
-        return self._ws_get("/ws/place/v1/search", params)
+        return self._place_search_get("/ws/place/v1/search", params)
 
 
     def direction(
